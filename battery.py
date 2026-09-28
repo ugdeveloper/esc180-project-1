@@ -93,118 +93,66 @@ def duration_fast_charge_possible(): # return the max duration fast charging is 
     else: #when health is bad
         return 0
 
-def simulate_activity(activity: str, duration: int): #return nothing, simulate the new current state of the battery
+def simulate_activity(activity: str, duration: int):
     """Simulate the battery performing the specified activity for duration minutes.
     activity is the activity performed by the battery and must be
     "charge", "use", or "idle". duration is the number of minutes
     for which the activity is performed. Update the battery's charge,
     temperature, and health accordingly.
     """
-    global FAST_CHARGE_RATE, SLOW_CHARGE_RATE, MIN_TEMP, MIN_CHARGE, MAX_TEMP_FAST_CHARGE, MAX_CHARGE_FAST_CHARGE, FAST_CHARGE_TEMP_INC, SLOW_CHARGE_TEMP_INC, USAGE_CHARGE_RATE, USAGE_TEMP_INC, IDLE_TEMP_INC, IDLE_CHARGE_RATE, MAX_CHARGE_GOOD, MAX_CHARGE_BAD, cur_charge, cur_temp, cur_health
+    global cur_charge, cur_temp
 
-    while True:
-        match activity:
-            case "charge": # if the activity is charge
+    match activity:
+        case "charge":
+            # fast charge for as long as it is possible (but no longer than duration),
+            # computed ONCE before any state changes
+            fast_duration = min(duration, duration_fast_charge_possible())
+            # whatever is left of the duration is slow charging
+            slow_duration = duration - fast_duration
 
-                slow_charge_duration = duration - duration_fast_charge_possible()
-                #if the initial max duration of fast charge was 0 all the duration is slow charging
-                #if it's than the part of duration that was not fast charging would be slow charging
-                #P.S. this is written here because afterwards the duration_fast_charge_possible will be changed
+            # fast charging phase
+            cur_charge += fast_duration * FAST_CHARGE_RATE
+            cur_temp += fast_duration * FAST_CHARGE_TEMP_INC
 
-                if duration_fast_charge_possible() > 0: #if fast charging is possible
+            # slow charging phase
+            if cur_health:
+                cur_charge += SLOW_CHARGE_RATE * slow_duration
+                if cur_charge > MAX_CHARGE_GOOD:
+                    cur_charge = MAX_CHARGE_GOOD
+            elif cur_charge <= MAX_CHARGE_BAD:
+                # a bad battery only charges up to its max; above it, charge stays as is
+                cur_charge += SLOW_CHARGE_RATE * slow_duration
+                if cur_charge > MAX_CHARGE_BAD:
+                    cur_charge = MAX_CHARGE_BAD
 
-                    if duration > duration_fast_charge_possible():
-                    #and charge duration is equal or more than max fast charge possible
+            # temperature keeps rising during slow charging even when charge is capped
+            cur_temp += SLOW_CHARGE_TEMP_INC * slow_duration
 
-                        cur_charge += duration_fast_charge_possible() *  FAST_CHARGE_RATE
+        case "use":
+            # minutes until the battery is empty
+            duration_use_possible = -(cur_charge - MIN_CHARGE) / USAGE_CHARGE_RATE
 
-                        cur_temp += duration_fast_charge_possible() * FAST_CHARGE_TEMP_INC
-
-                        continue
-                        #charges fast the longest possible time than continues (to switch to slow charging)
-
-                    elif duration_fast_charge_possible() >= duration > 0:
-                        #duration of charging is less than or equal to max fast charging duration
-
-                        cur_charge += duration * FAST_CHARGE_RATE
-
-                        cur_temp += duration * FAST_CHARGE_TEMP_INC
-
-                        break  # charges the whole duration fast than quits
-
-                else: # when duration fast charge possible (initially or already) equals 0
-                    if cur_health: #if health is good
-
-                        cur_charge += SLOW_CHARGE_RATE * slow_charge_duration
-
-                        cur_temp += SLOW_CHARGE_TEMP_INC * slow_charge_duration
-
-                        if cur_charge > MAX_CHARGE_GOOD:
-                            cur_charge = MAX_CHARGE_GOOD
-                            # not letting cur charge be bigger than max charge
-                            #while the temp will continue to increase by the same rate (as in the requirement)
-
-                        break # slow charges the rest/all of the duration and leaves the loop(and the function)
-
-                    else: #when health is bad
-                        if cur_charge <= MAX_CHARGE_BAD:
-                            # this is for the case when battery was i.e. at 92% (just turned bad)
-                            # so the charging doesnt drop the value from 92% to 80% (not logical)
-
-                            cur_charge += SLOW_CHARGE_RATE * slow_charge_duration
-
-                            if cur_charge > MAX_CHARGE_BAD:
-                                cur_charge = MAX_CHARGE_BAD # will return maximum 80% if initially was less
-                        else: # if initially was more than 80%
-                            pass # charge doesn't change only temperature does (in the next line)
-
-                        cur_temp += SLOW_CHARGE_TEMP_INC * slow_charge_duration
-
-                        break # slow charges the rest/all of the duration and leaves the loop(and the function)
-            case "use":
-
-                duration_use_possible = -(cur_charge - MIN_CHARGE) /USAGE_CHARGE_RATE #negative because discharging
-                #the max time it can be used before dying
-
-                duration_dead = duration - duration_use_possible # time it is dead in duration
-
-                if duration >= duration_use_possible:
-
-                    cur_charge += USAGE_CHARGE_RATE * duration_use_possible
-                    #could've writen cur_charge = 0 (this way to understand the process)
-
-                    cur_temp += USAGE_TEMP_INC * duration_use_possible # increases temp until dies
-
-                    cur_temp += IDLE_TEMP_INC * duration_dead # decreases temp afterwards
-
-                    if cur_temp < MIN_TEMP: #not letting temp be less than min
-                        cur_temp = MIN_TEMP
-
-                    break
-
-                elif duration_use_possible > duration: # if battery doesn't die while using
-
-                    cur_charge += USAGE_CHARGE_RATE * duration
-
-                    cur_temp += USAGE_TEMP_INC * duration
-
-                    break # discharges and heats up for the duration and leaves
-            case "idle":
-
-                cur_temp += IDLE_TEMP_INC * duration
-
-                cur_charge += IDLE_CHARGE_RATE * duration
-
-                if cur_charge < MIN_CHARGE: #not letting charge be less than min
-                    cur_charge = MIN_CHARGE
-
-                if cur_temp < MIN_TEMP: #not letting temp be less than min
+            if duration >= duration_use_possible:
+                cur_charge = MIN_CHARGE
+                cur_temp += USAGE_TEMP_INC * duration_use_possible  # heats up until dead
+                cur_temp += IDLE_TEMP_INC * (duration - duration_use_possible)  # cools afterwards
+                if cur_temp < MIN_TEMP:
                     cur_temp = MIN_TEMP
+            else:
+                cur_charge += USAGE_CHARGE_RATE * duration
+                cur_temp += USAGE_TEMP_INC * duration
 
-                break # idled for the whole duration and exited the loop (and the function)
-            case _:
-                break #not allowing an infinite loops if activity is not one of those mentioned
+        case "idle":
+            cur_temp += IDLE_TEMP_INC * duration
+            cur_charge += IDLE_CHARGE_RATE * duration
 
+            if cur_charge < MIN_CHARGE:
+                cur_charge = MIN_CHARGE
+            if cur_temp < MIN_TEMP:
+                cur_temp = MIN_TEMP
+
+        case _:
+            pass  # unknown activity: do nothing
 
 def charge_time_needed(minutes): # return the time needed to charge to than be used "minutes" mins
     """Return the charging time needed to allow the battery to be used
