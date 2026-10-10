@@ -1,5 +1,5 @@
 def initialize():
-    # init variables
+    """init variables, set all values to default"""
 
     # Mutable global variables
     global cur_charge, cur_temp, cur_health
@@ -84,25 +84,25 @@ def initialize():
  
  
 def get_cur_temp() -> float:
-    # return current battery temp
+    """return current battery temp"""
  
     return float(cur_temp)
  
  
 def get_cur_charge() -> float:
-    # return current charge
+    """return current charge"""
     
     return float(cur_charge)
  
  
 def get_cur_battery_health() -> bool:
-    # return current battery health
+    """return current battery health"""
     
     return cur_health
  
  
 def duration_fast_charge_possible() -> float:
-    # return duration that fast charge is possible in min
+    """return duration that fast charge is possible in min"""
     
     # if current health is bad this time is 0
     if not cur_health:
@@ -124,8 +124,8 @@ def duration_fast_charge_possible() -> float:
  
  
 def register_overcharge(overcharge_time: int) -> bool:
-    # register an overcharge and check if 3 overcharges have occured
-    # in the time frame
+    """register an overcharge and check if 3 overcharges have occured
+    in the time frame"""
  
     global overcharge_1, overcharge_2
  
@@ -144,7 +144,7 @@ def register_overcharge(overcharge_time: int) -> bool:
  
  
 def simulate_charging(duration: float):
-    # simulate battery charging for duration minutes
+    """simulate battery charging for duration minutes"""
  
     global cur_charge, cur_temp, cur_health
 
@@ -181,7 +181,7 @@ def simulate_charging(duration: float):
     fast_duration = min(duration_fast_charge_possible(), duration)
     slow_duration = duration - fast_duration
 
-    # First calculate the charge after fast charging, then calculate the new charge using the slow charge duration.
+    # First calculate the charge after fast charging, then calculate the new charge using the slow charge duration (this split is useful for overcharge calculation).
     charge_after_fast = cur_charge + FAST_CHARGE_RATE * fast_duration
     new_charge = charge_after_fast + SLOW_CHARGE_RATE * slow_duration
  
@@ -208,7 +208,7 @@ def simulate_charging(duration: float):
  
  
 def simulate_activity(activity: str, duration: float):
-    # Simulate charging, usage, and idle
+    """Simulate charging, usage, and idle"""
  
     global cur_charge, cur_temp, cur_time
 
@@ -237,7 +237,7 @@ def simulate_activity(activity: str, duration: float):
  
     else:
         # Base case to prevent errors.
-        return
+        raise Exception
  
     # Neither the charge nor the temperature can go below 0
     cur_charge = max(cur_charge, MIN_CHARGE)
@@ -247,7 +247,7 @@ def simulate_activity(activity: str, duration: float):
  
  
 def charge_time_needed(minutes: float) -> float:
-    # returns the charge time needed for the battery to be able to be used for duration minutes
+    """return the charge time needed for the battery to be able to be used for duration minutes """
  
     # charge needed to use the battery for duration minutes
     charge_needed_total = -USAGE_DISCHARGE_RATE * minutes
@@ -284,17 +284,33 @@ def charge_time_needed(minutes: float) -> float:
     return fast_time_possible + (charge_needed_total - charge_after_fast) / SLOW_CHARGE_RATE
 
 def main():
+    """main function, just a style thing"""
+
     initialize()
-    simulate_activity("charge", 30)
-    print(get_cur_temp() == 30.0)
-    print(get_cur_charge() == 100.0)
-    print(duration_fast_charge_possible() == 0)
-    simulate_activity("idle", 10)
-    simulate_activity("use", 25)
-    print(get_cur_temp() == 45.0)
-    print(get_cur_charge() == 45.0)
-    print(charge_time_needed(40) == 35.0)
- 
+
+    # try-catch block is unnecessary but I just wanted to include a way to handle improper function calls despite the lack of an input
+    try:
+        simulate_activity("charge", 30)
+        print(get_cur_temp() == 30.0)
+        print(get_cur_charge() == 100.0)
+        print(duration_fast_charge_possible() == 0)
+        simulate_activity("idle", 10)
+        simulate_activity("use", 25)
+        print(get_cur_temp() == 45.0)
+        print(get_cur_charge() == 45.0)
+        print(charge_time_needed(40) == 35.0)
+        simulate_activity("charge", 12.34)
+        print(get_cur_charge())
+        simulate_activity("use", 45.67)
+
+        ## these calls would raise errors which are caught by the program without causing a syntax error.
+        print(get_cur_charge(11))
+        simulate_activity("sdlkjasd")
+        simulate_activity(20323)
+
+    except Exception as e:
+        print("please call functions with proper syntax")
+        print(e)
 
  
 if __name__ == '__main__':
