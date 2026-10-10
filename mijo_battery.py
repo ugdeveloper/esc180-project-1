@@ -25,88 +25,88 @@ def initialize():
     cur_health = True
  
     # current time in minutes
-    cur_time = 0
+    cur_time = 0.0
  
     # timeframe of overcharge 1 (-1 for not happened)
-    overcharge_1 = -1
+    overcharge_1 = -1.0
  
-    # timeframe of overcharge 1 (-1 for not happened)
-    overcharge_2 = -1
+    # timeframe of overcharge 2 (-1 for not happened)
+    overcharge_2 = -1.0
 
     #max charge for fast charging
-    MAX_CHARGE_FAST_CHARGE = 80
+    MAX_CHARGE_FAST_CHARGE = 80.0
 
     # max temp for fast charge
-    MAX_TEMP_FAST_CHARGE = 40
+    MAX_TEMP_FAST_CHARGE = 40.0
  
     # fast charge rate %/min
-    FAST_CHARGE_RATE = 3
+    FAST_CHARGE_RATE = 3.0
  
     # fast charge temp increment deg C/min
     FAST_CHARGE_TEMP_INC = 0.5
  
     # slow charge rate %/min
-    SLOW_CHARGE_RATE = 1
+    SLOW_CHARGE_RATE = 1.0
 
     # slow charge temp increment deg C/min
     SLOW_CHARGE_TEMP_INC = 0.25
  
     # min possible temperature in deg C.
-    MIN_TEMP = 0
+    MIN_TEMP = 0.0
  
     # min charge in %.
-    MIN_CHARGE = 0
+    MIN_CHARGE = 0.0
  
     # max charge of good health battery in %
-    MAX_CHARGE_GOOD = 100
+    MAX_CHARGE_GOOD = 100.0
  
     # max charge of bad health battery in %
-    MAX_CHARGE_BAD = 80
+    MAX_CHARGE_BAD = 80.0
  
     # usage temp increment in deg C/min
-    USAGE_TEMP_INC = 1
+    USAGE_TEMP_INC = 1.0
  
     # usage rate in %/min
-    USAGE_DISCHARGE_RATE = -2
+    USAGE_DISCHARGE_RATE = -2.0
  
     # idle temp increment in deg C/min
-    IDLE_TEMP_INC = -1
+    IDLE_TEMP_INC = -1.0
  
     # usage rate for idle in %/min
     IDLE_DISCHARGE_RATE = -0.5
  
     # Charge at or above which charging counts as an overcharge, in %.
-    OVERCHARGE_LEVEL = 90
+    OVERCHARGE_LEVEL = 90.0
  
     # Time span for 3 overcharges
     # A gap of exactly this length is not within the span.
-    OVERCHARGE_WINDOW = 360
+    OVERCHARGE_WINDOW = 360.0
  
  
-def get_cur_temp():
+def get_cur_temp() -> float:
     # return current battery temp
  
     return float(cur_temp)
  
  
-def get_cur_charge():
+def get_cur_charge() -> float:
     # return current charge
     
     return float(cur_charge)
  
  
-def get_cur_battery_health():
+def get_cur_battery_health() -> bool:
     # return current battery health
     
     return cur_health
  
  
-def duration_fast_charge_possible():
+def duration_fast_charge_possible() -> float:
     # return duration that fast charge is possible in min
     
     # if current health is bad this time is 0
     if not cur_health:
-        return 0
+        return 0.0
  
     # calculate the limiting times of temp and charge for fast charging
     # (i.e, the time for the current temp/charge to reach the max temp/charge)
@@ -115,7 +115,7 @@ def duration_fast_charge_possible():
 
     # if either of the limiting times is less than or equal to zero, return 0
     if temp_lim_time <= 0 or charge_lim_time <= 0:
-        return 0
+        return 0.0
 
     # base case, return the smaller value between the limiting times.
     # (i.e, the smaller time limits the entire process of fast charging
@@ -123,7 +123,7 @@ def duration_fast_charge_possible():
     return min(temp_lim_time, charge_lim_time)
  
  
-def register_overcharge(overcharge_time):
+def register_overcharge(overcharge_time: int) -> bool:
     # register an overcharge and check if 3 overcharges have occured
     # in the time frame
  
@@ -133,6 +133,8 @@ def register_overcharge(overcharge_time):
     # the third within 6 hours exactly when the older of these two is less
     # than 6 hours before it.
     if (overcharge_1 >= 0 and overcharge_2 >= 0) and (overcharge_time - overcharge_1 < OVERCHARGE_WINDOW):
+        overcharge_1 = overcharge_2
+        overcharge_2 = overcharge_time
         return True
 
     overcharge_1 = overcharge_2
@@ -141,7 +143,7 @@ def register_overcharge(overcharge_time):
     return False
  
  
-def simulate_charging(duration):
+def simulate_charging(duration: float):
     # simulate battery charging for duration minutes
  
     global cur_charge, cur_temp, cur_health
@@ -194,18 +196,18 @@ def simulate_charging(duration):
         time_of_overcharge = fast_duration + (OVERCHARGE_LEVEL - charge_after_fast) / SLOW_CHARGE_RATE
 
         # pass the time of the over charge + the current time.
-        # again, register overcharge will return True if 3 overcharges have been registered within 3 hours
+        # again, register overcharge will return True if 3 overcharges have been registered within 6 hours
         if register_overcharge(cur_time + time_of_overcharge):
             # The health turns bad at the moment the level is reached, so
             # the charge stays there for the rest of the session.
             cur_health = False
             new_charge = OVERCHARGE_LEVEL
 
-    # Limiting statement that bounds cur_charge as < 100
+    # Limiting statement that bounds cur_charge as <= 100
     cur_charge = min(new_charge, MAX_CHARGE_GOOD)
  
  
-def simulate_activity(activity, duration):
+def simulate_activity(activity: str, duration: float):
     # Simulate charging, usage, and idle
  
     global cur_charge, cur_temp, cur_time
@@ -244,7 +246,7 @@ def simulate_activity(activity, duration):
     cur_time += duration
  
  
-def charge_time_needed(minutes):
+def charge_time_needed(minutes: float) -> float:
     # returns the charge time needed for the battery to be able to be used for duration minutes
  
     # charge needed to use the battery for duration minutes
@@ -255,7 +257,7 @@ def charge_time_needed(minutes):
         return 0
 
     # init local variable max charge (in-line conditional kindof like ternery operator in java '? :')
-    max_charge = MAX_CHARGE_GOOD if cur_charge else MAX_CHARGE_BAD
+    max_charge = MAX_CHARGE_GOOD if cur_health else MAX_CHARGE_BAD
 
     # if the needed charge is greater than the possible charge, no value satisfies the need 
     # (in one charge->use, note that techincally you could discharge completely then charge again)
@@ -280,10 +282,8 @@ def charge_time_needed(minutes):
 
     # fast time possible plus slow time (amnt of charge to get to needed charge / slow charge rate)
     return fast_time_possible + (charge_needed_total - charge_after_fast) / SLOW_CHARGE_RATE
- 
- 
-if __name__ == '__main__':
-    
+
+def main():
     initialize()
     simulate_activity("charge", 30)
     print(get_cur_temp() == 30.0)
@@ -296,4 +296,7 @@ if __name__ == '__main__':
     print(charge_time_needed(40) == 35.0)
  
 
+ 
+if __name__ == '__main__':
+    main()
 
